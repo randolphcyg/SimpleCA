@@ -32,9 +32,9 @@ func TestHashByMD5(t *testing.T) {
 // }
 
 func TestCreateRSAPrivateKeyToFile(t *testing.T) {
-	currentPath, _ := os.Getwd()
+	rootPath, _ := os.Getwd()
 	prvKeyName := "TestCreateRSAPrivateKeyToFile"
-	filepath := path.Join(currentPath, prvKeyName)
+	filepath := path.Join(rootPath, prvKeyName)
 	if !CreateRSAPrivateKeyToFile(filepath, 2048) {
 		t.Error()
 	}

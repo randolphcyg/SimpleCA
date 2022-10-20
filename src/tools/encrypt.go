@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/md5"
 	"crypto/rand"
 	"crypto/rsa"
@@ -130,6 +132,40 @@ func DecodeRSAPublicKey(input []byte) (interface{}, bool) {
 	return pub, true
 }
 
+// DecodeEcdsaPublicKey 解码 ECDSA 公钥 pem 文件
+func DecodeEcdsaPublicKey(input []byte) (interface{}, bool) {
+	block, _ := pem.Decode(input)
+	if block == nil || (block.Type != "PUBLIC KEY" && block.Type != "ECDSA PUBLIC KEY") {
+		ExceptionLog(errors.New("DecodeECDSAPublicKeyFail"),
+			"failed to decode PEM block containing public key")
+		return nil, false
+	}
+	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		ExceptionLog(errors.New("ParsePKIXPublicKeyFail"),
+			"failed to parse PKIX public key")
+		return nil, false
+	}
+	return pub, true
+}
+
+// DecodeEcdsaPrivateKey 解码 ECDSA 私钥 pem 文件
+func DecodeEcdsaPrivateKey(input []byte) (prvKey *ecdsa.PrivateKey, err error) {
+	block, _ := pem.Decode(input)
+	if block == nil || block.Type != "ECD PRIVATE KEY" {
+		err = errors.New("failed to decode PEM block containing private key")
+		return
+	}
+
+	prvKey, err = x509.ParseECPrivateKey(block.Bytes)
+	if err != nil {
+		err = errors.New("failed to parse PKCS1 private key")
+		return
+	}
+
+	return
+}
+
 // DecodeRSAPrivateKey 解码 RSA 私钥 pem 文件
 func DecodeRSAPrivateKey(input []byte) (*rsa.PrivateKey, bool) {
 	block, _ := pem.Decode(input)
@@ -157,5 +193,32 @@ func CreateRSAPrivateKeyToFile(filepath string, len int) bool {
 		ExceptionLog(err, fmt.Sprintf("Fail to encode to %s", filepath))
 		return false
 	}
+	return true
+}
+
+// CreateEcdsaPrvKeyToFile 生成 ECDSA 私钥，并写入到文件
+func CreateEcdsaPrvKeyToFile(filepath string, len int) bool {
+	prvKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		ExceptionLog(err, fmt.Sprintf("Fail to encode to %s", filepath))
+	}
+
+	//pk, _ := rsa.GenerateKey(rand.Reader, len)
+	priFile, _ := os.Create(filepath)
+	defer priFile.Close()
+	prvKeyBytes, err := x509.MarshalECPrivateKey(prvKey)
+	if err != nil {
+		return false
+	}
+	prvKeyBlock := pem.Block{
+		Type:  "ECD PRIVATE KEY",
+		Bytes: prvKeyBytes,
+	}
+	// 编码私匙,写入文件
+	if err := pem.Encode(priFile, &prvKeyBlock); err != nil {
+		ExceptionLog(err, fmt.Sprintf("Fail to encode to %s", filepath))
+		return false
+	}
+
 	return true
 }

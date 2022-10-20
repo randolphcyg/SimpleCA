@@ -12,7 +12,7 @@ import (
 )
 
 func checkPublicKey(str string) bool {
-	_, ok := tools.DecodeRSAPublicKey([]byte(str))
+	_, ok := tools.DecodeEcdsaPublicKey([]byte(str))
 	return ok
 }
 

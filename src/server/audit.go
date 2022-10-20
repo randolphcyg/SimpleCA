@@ -119,8 +119,8 @@ func AuditPassLogic(ctx *gin.Context, req ginTools.BaseReqInter) ginTools.BaseRe
 	})
 	// 生成证书
 	certName := tools.GetCertificateFileName(c.ID, user.ID, user.Username)
-	currentPath, _ := os.Getwd()
-	certFileName := path.Join(currentPath, src.GetSetting().Secret.UserCerPath+"/"+certName)
+	rootPath, _ := os.Getwd()
+	certFileName := path.Join(rootPath, src.GetSetting().Secret.UserCerPath+"/"+certName)
 	// 获取 CA 根证书和私钥
 	rootCert, rootPrvKey := src.GetCARootCert()
 

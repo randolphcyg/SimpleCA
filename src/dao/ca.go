@@ -143,7 +143,7 @@ func updateCertificateStateByID(db *gorm.DB, state, id uint) error {
 	return err
 }
 
-// 生成一条新的 CRL 信息
+// CreateNewCRL 生成一条新的 CRL 信息
 func CreateNewCRL(csrID, serialNum uint, expired int64) (*CRL, error) {
 	vs, err := daoUtils.UseTransaction(func(db *gorm.DB, serial uint, expired int64) (crl *CRL, err error) {
 		// 修改 CSR 状态

@@ -1,41 +1,44 @@
 package tools
 
 import (
+	"crypto/ecdsa"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
 	"math/big"
 	"os"
-	"path"
-	"runtime"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
-func DecodePemCert(filepath string) (*x509.Certificate, bool) {
+func DecodePemCert(filepath string) (certBody *x509.Certificate, err error) {
 	pemTmp, err := os.ReadFile(filepath)
 	if err != nil {
-		ExceptionLog(err, fmt.Sprintf("read %s Fail", filepath))
-		return nil, false
+		err = errors.Wrap(err, filepath)
+		return
 	}
+
 	certBlock, _ := pem.Decode(pemTmp)
 	if certBlock == nil {
-		ExceptionLog(err, "pem decode fail")
-		return nil, false
+		err = errors.Wrap(err, "pem decode fail")
+		return
 	}
+
 	// 证书解析
-	certBody, err := x509.ParseCertificate(certBlock.Bytes)
+	certBody, err = x509.ParseCertificate(certBlock.Bytes)
 	if err != nil {
-		ExceptionLog(err, "fail to parse cert")
-		return nil, false
+		err = errors.Wrap(err, "fail to parse cert")
+		return
 	}
-	return certBody, true
+
+	return
 }
 
 func createNewCertificate(rootCer, template *x509.Certificate,
-	publicKey string, pk *rsa.PrivateKey, p string) bool {
+	publicKey string, pk *ecdsa.PrivateKey, p string) bool {
 
 	var c []byte
 	var err error
@@ -43,7 +46,7 @@ func createNewCertificate(rootCer, template *x509.Certificate,
 	if rootCer == nil {
 		c, err = x509.CreateCertificate(rand.Reader, template, template, &pk.PublicKey, pk)
 	} else {
-		pub, ok := DecodeRSAPublicKey([]byte(publicKey))
+		pub, ok := DecodeEcdsaPublicKey([]byte(publicKey))
 		if !ok {
 			return false
 		}
@@ -69,14 +72,16 @@ func createNewCertificate(rootCer, template *x509.Certificate,
 
 // CreateIssuerRootCer 生成颁发者根证书
 func CreateIssuerRootCer(issuer pkix.Name, notBefore,
-	notAfter time.Time, pk *rsa.PrivateKey, p string) bool {
+	notAfter time.Time, pk *ecdsa.PrivateKey, p string) bool {
 	template := &x509.Certificate{
-		Version:            1,
-		SerialNumber:       big.NewInt(1),
-		Subject:            issuer,
-		Issuer:             issuer,
-		SignatureAlgorithm: x509.SHA256WithRSA,
-		PublicKeyAlgorithm: x509.RSA,
+		Version:      1,
+		SerialNumber: big.NewInt(1),
+		Subject:      issuer,
+		Issuer:       issuer,
+		//SignatureAlgorithm: x509.SHA256WithRSA,
+		//PublicKeyAlgorithm: x509.RSA,
+		SignatureAlgorithm: x509.ECDSAWithSHA256,
+		PublicKeyAlgorithm: x509.ECDSA,
 		NotBefore:          notBefore,
 		NotAfter:           notAfter,
 		IsCA:               true,
@@ -91,15 +96,17 @@ func CreateIssuerRootCer(issuer pkix.Name, notBefore,
 
 // CreateCodeSignCert 生成代码签名证书
 func CreateCodeSignCert(rootCer *x509.Certificate, serialN *big.Int, subject pkix.Name,
-	publicKey string, pk *rsa.PrivateKey, notBefore, notAfter time.Time,
+	publicKey string, pk *ecdsa.PrivateKey, notBefore, notAfter time.Time,
 	CRLDistributionPoint []string, p string) bool {
 	template := &x509.Certificate{
-		Version:               1,
-		SerialNumber:          serialN,
-		Subject:               subject,
-		Issuer:                subject,
-		SignatureAlgorithm:    x509.SHA256WithRSA,
-		PublicKeyAlgorithm:    x509.RSA,
+		Version:            1,
+		SerialNumber:       serialN,
+		Subject:            subject,
+		Issuer:             subject,
+		SignatureAlgorithm: x509.ECDSAWithSHA256,
+		PublicKeyAlgorithm: x509.ECDSA,
+		//SignatureAlgorithm:    x509.SHA256WithRSA,
+		//PublicKeyAlgorithm:    x509.RSA,
 		NotBefore:             notBefore,
 		NotAfter:              notAfter,
 		CRLDistributionPoints: CRLDistributionPoint,
@@ -112,15 +119,17 @@ func CreateCodeSignCert(rootCer *x509.Certificate, serialN *big.Int, subject pki
 
 // CreateSSLCert 生成 SSL 证书
 func CreateSSLCert(rootCer *x509.Certificate, serialN *big.Int, subject pkix.Name,
-	publicKey string, pk *rsa.PrivateKey, notBefore, notAfter time.Time,
+	publicKey string, pk *ecdsa.PrivateKey, notBefore, notAfter time.Time,
 	CRLDistributionPoint []string, DNSNames []string, p string) bool {
 	template := &x509.Certificate{
-		Version:               1,
-		SerialNumber:          serialN,
-		Subject:               subject,
-		Issuer:                subject,
-		SignatureAlgorithm:    x509.SHA256WithRSA,
-		PublicKeyAlgorithm:    x509.RSA,
+		Version:      1,
+		SerialNumber: serialN,
+		Subject:      subject,
+		Issuer:       subject,
+		//SignatureAlgorithm:    x509.SHA256WithRSA,
+		//PublicKeyAlgorithm:    x509.RSA,
+		SignatureAlgorithm:    x509.ECDSAWithSHA256,
+		PublicKeyAlgorithm:    x509.ECDSA,
 		NotBefore:             notBefore,
 		NotAfter:              notAfter,
 		CRLDistributionPoints: CRLDistributionPoint,
@@ -133,16 +142,17 @@ func CreateSSLCert(rootCer *x509.Certificate, serialN *big.Int, subject pkix.Nam
 }
 
 // CreateNewCRL 生成 CRL
-func CreateNewCRL(cer *x509.Certificate, pk *rsa.PrivateKey,
-	revokedCerts []pkix.RevokedCertificate, now, expiry time.Time, fileName string) bool {
+func CreateNewCRL(cer *x509.Certificate, pk *ecdsa.PrivateKey,
+	revokedCerts []pkix.RevokedCertificate, now, expiry time.Time, filepath string) bool {
+	// TODO 该函数废弃 需要用CreateRevocationList替代 比较复杂 没用到就不改
 	crlBytes, err := cer.CreateCRL(rand.Reader, pk, revokedCerts, now, expiry)
 	if err != nil {
 		ExceptionLog(err, "Fail to create CRL")
 		return false
 	}
-	certOut, err := os.Create(fileName)
+	certOut, err := os.Create(filepath)
 	if err != nil {
-		ExceptionLog(err, fmt.Sprintf("Failed to create %s", fileName))
+		ExceptionLog(err, fmt.Sprintf("Failed to create %s", filepath))
 		return false
 	}
 	err = pem.Encode(certOut, &pem.Block{Type: "X509 CRL", Bytes: crlBytes})
@@ -156,19 +166,17 @@ func CreateNewCRL(cer *x509.Certificate, pk *rsa.PrivateKey,
 
 // ParseCRLUpdateTime 从 CRL 文件读取上次更新时间
 func ParseCRLUpdateTime(filePath string) (int64, bool) {
-	_, currently, _, _ := runtime.Caller(1)
-	filename := path.Join(path.Dir(currently), filePath)
-	crlF, err := os.ReadFile(filename)
+	crlF, err := os.ReadFile(filePath)
 	if err != nil {
-		ExceptionLog(err, fmt.Sprintf("Fail to read csr: %s", filename))
+		ExceptionLog(err, fmt.Sprintf("Fail to read csr: %s", filePath))
 		return 0, false
 	}
-	crl, err := x509.ParseCRL(crlF)
+	crl, err := x509.ParseRevocationList(crlF)
 	if err != nil {
-		ExceptionLog(err, fmt.Sprintf("Fail to parse csr: %s", filename))
+		ExceptionLog(err, fmt.Sprintf("Fail to parse csr: %s", filePath))
 		return 0, false
 	}
-	return crl.TBSCertList.ThisUpdate.Unix(), true
+	return crl.ThisUpdate.Unix(), true
 }
 
 func GetCertificateFileName(serial, userID uint, userName string) string {

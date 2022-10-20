@@ -1,7 +1,7 @@
 package src
 
 import (
-	"crypto/rsa"
+	"crypto/ecdsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"fmt"
@@ -115,17 +115,17 @@ func GetSetting() *Setting {
 }
 
 var CARootCert = &x509.Certificate{}
-var CARootPrvKey = &rsa.PrivateKey{}
+var CARootPrvKey = &ecdsa.PrivateKey{}
 
 // loadCACertAndPrvKey 加载 CA 私钥和根证书
-func loadCACertAndPrvKey() (rootRCer *x509.Certificate, rootRPK *rsa.PrivateKey) {
+func loadCACertAndPrvKey() (rootRCer *x509.Certificate, rootRPK *ecdsa.PrivateKey) {
 	// 获取私钥
-	currentPath, _ := os.Getwd()
+	rootPath, _ := os.Getwd()
 	prvKeyName := GetSetting().Secret.CARootPrvKeyName
-	prvKeyFilepath := path.Join(currentPath, prvKeyName)
+	prvKeyFilepath := path.Join(rootPath, prvKeyName)
 	if !tools.IsFileExist(prvKeyFilepath) {
 		// 私钥不存在，创建
-		if !tools.CreateRSAPrivateKeyToFile(prvKeyFilepath, GetSetting().Secret.CARootPrvKeyLen) {
+		if !tools.CreateEcdsaPrvKeyToFile(prvKeyFilepath, GetSetting().Secret.CARootPrvKeyLen) {
 			panic("CAPrivateKeyAcquisitionFailed")
 		}
 	}
@@ -135,10 +135,9 @@ func loadCACertAndPrvKey() (rootRCer *x509.Certificate, rootRPK *rsa.PrivateKey)
 		tools.ExceptionLog(err, fmt.Sprintf("open %s Fail", prvKeyFilepath))
 		panic("CAPrivateKeyAcquisitionFailed")
 	}
-	r, ok := tools.DecodeRSAPrivateKey(data)
-	rootRPK = r
-	if !ok {
-		panic("CAPrivateKeyAcquisitionFailed")
+	rootRPK, err = tools.DecodeEcdsaPrivateKey(data)
+	if err != nil {
+		return
 	}
 
 	// 加载证书
@@ -152,23 +151,23 @@ func loadCACertAndPrvKey() (rootRCer *x509.Certificate, rootRPK *rsa.PrivateKey)
 		CommonName:         s.CommonName,
 	}
 	certName := GetSetting().Secret.CARootCertName
-	certFilepath := path.Join(currentPath, certName)
+	certFilepath := path.Join(rootPath, certName)
 	if !tools.IsFileExist(certFilepath) {
 		// 新建证书
 		if !tools.CreateIssuerRootCer(issuer,
-			time.Now(), time.Now().Add(time.Hour*24*365*10), r, certName) {
+			time.Now(), time.Now().Add(time.Hour*24*365*10), rootRPK, certName) {
 			panic("FailedToCreateRootCertificate")
 		}
 	}
 	// 读根证书
-	rootRCer, ok = tools.DecodePemCert(certFilepath)
-	if !ok {
+	rootRCer, err = tools.DecodePemCert(certFilepath)
+	if err != nil {
 		panic("DecodeRootCertificateFail")
 	}
 	return
 }
 
-func GetCARootCert() (x509.Certificate, rsa.PrivateKey) {
+func GetCARootCert() (x509.Certificate, ecdsa.PrivateKey) {
 	caOnce.Do(func() {
 		CARootCert, CARootPrvKey = loadCACertAndPrvKey()
 	})
@@ -181,7 +180,9 @@ var crlUpdateTimeNextTime int64
 func GetNextUpdateCRLTime() int64 {
 	if atomic.LoadInt64(&crlUpdateTimeNextTime) == 0 {
 		crlOnce.Do(func() {
-			t, ok := tools.ParseCRLUpdateTime(GetSetting().CRLSetting.CRLFileName)
+			rootPath, _ := os.Getwd()
+			crlFilepath := path.Join(rootPath, GetSetting().CRLSetting.CRLFileName)
+			t, ok := tools.ParseCRLUpdateTime(crlFilepath)
 			if !ok {
 				atomic.StoreInt64(&crlUpdateTimeNextTime, time.Now().Unix())
 			} else {

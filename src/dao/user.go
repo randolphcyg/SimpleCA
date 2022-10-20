@@ -2,8 +2,10 @@ package dao
 
 import (
 	"fmt"
+
 	daotools "github.com/520MianXiangDuiXiang520/GoTools/dao"
 	"github.com/jinzhu/gorm"
+
 	"simple_ca/src"
 	"simple_ca/src/definition"
 	"simple_ca/src/tools"
@@ -29,14 +31,16 @@ func GetCertificateFullAmountFieldsUser(user *User) ([]definition.CertificateFul
 			csr.Province, csr.Country)
 		cName := tools.GetCertificateFileName(v.ID, user.ID, user.Username)
 		result[i] = definition.CertificateFullAmountFields{
-			Issuer:                issuer,
-			Subject:               subject,
-			SerialNumber:          v.ID,
-			Statue:                v.State,
-			NotAfter:              v.ExpireTime,
-			NotBefore:             v.CreatedAt.Unix(),
-			SignatureAlgorithm:    "SHA256WithRSA",
-			PublicKeyAlgorithm:    "RSA",
+			Issuer:       issuer,
+			Subject:      subject,
+			SerialNumber: v.ID,
+			State:        v.State,
+			NotAfter:     v.ExpireTime,
+			NotBefore:    v.CreatedAt.Unix(),
+			//SignatureAlgorithm:    "SHA256WithRSA",
+			//PublicKeyAlgorithm:    "RSA",
+			SignatureAlgorithm:    "ECDSAWithSHA256",
+			PublicKeyAlgorithm:    "ECDSA",
 			KeyUsage:              "KeyUsageDigitalSignature | KeyUsageCertSign",
 			ExtKeyUsage:           "ExtKeyUsageAny",
 			CRLDistributionPoints: src.GetSetting().CRLSetting.CRLDistributionPoint,

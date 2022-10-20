@@ -9,6 +9,8 @@ import (
 	"io/ioutil"
 	"math/big"
 	"net/http"
+	"os"
+	"path"
 	"strconv"
 	"time"
 
@@ -22,7 +24,7 @@ import (
 	"simple_ca/src/tools"
 )
 
-// CaUploadPKLogic 提交公钥 TODO 主键解析错误
+// CaUploadPKLogic 提交公钥
 func CaUploadPKLogic(ctx *gin.Context, req ginTools.BaseReqInter) ginTools.BaseRespInter {
 	request := req.(*message.CaUploadPKReq)
 	resp := message.CaRequestResp{}
@@ -296,7 +298,9 @@ func UpdateCRL() bool {
 	rootCert, rootPrvKey := src.GetCARootCert()
 	n := time.Now()
 	l := n.Add(time.Hour * 24)
-	ok := tools.CreateNewCRL(&rootCert, &rootPrvKey, rcList, n, l, src.GetSetting().CRLSetting.CRLFileName)
+	rootPath, _ := os.Getwd()
+	crlFileName := path.Join(rootPath, src.GetSetting().CRLSetting.CRLFileName)
+	ok := tools.CreateNewCRL(&rootCert, &rootPrvKey, rcList, n, l, crlFileName)
 	src.SetNextUpdateCRLTime(n.Unix())
 	return ok
 }
